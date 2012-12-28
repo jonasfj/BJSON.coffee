@@ -25,8 +25,10 @@ compare = (e1, e2) ->
 # Don't run QUnit tests on start
 QUnit.config.autostart = false
 
+allTests = []
 $ ->
-  for t in (t for t, j of testData).sort()
+  allTests = (t for t, j of testData).sort()
+  for t in allTests
     json = testData[t]
     do (t, json) ->
       test t, ->
@@ -67,12 +69,6 @@ fetchResults = (v = 1) ->
 
 @_fetchedResults = ({category_name, v, results}) ->
   # Find all tests in the results
-  allTests = []
-  for browser, {results: tests} of results
-    for test, {result} of tests
-      allTests.push test      if test not in allTests
-  allTests.sort()
-  
   succ = (result, inconsistent) ->
     if result
       "<span class='label icon-ok'> Passed</span>"
