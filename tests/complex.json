@@ -1,0 +1,15 @@
+{
+  "title": "Complex test, with UTF-8 and other unpleasentries",
+  "Nasty Unicode": "This is nasty: \uD800\uDC00, it's not even UCS-2",
+  "Nested dictionary": {
+    "Including Arrays": [9, 7, 5, 4, 3, {"Key": "Value"}, 1],
+    "Unicode": "æ, ø, å",
+    "Text-arrays": ["a", "b", "c", "d", "e", "ø", "å", "k"],
+    "Numbers": 765235,
+    "Empty-Array": [],
+    "Negative number :)": -34234,
+    "Number as string": "543234"
+  },
+  "How about boolean": true,
+  "Do we test everything which possible": false
+}

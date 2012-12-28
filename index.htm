@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>BJSON.coffee</title>
+  <link rel="stylesheet" href="http://code.jquery.com/qunit/qunit-1.10.0.css">
+  <link href="http://netdna.bootstrapcdn.com/twitter-bootstrap/2.1.1/css/bootstrap.no-icons.min.css" rel="stylesheet">
+  <link href="http://netdna.bootstrapcdn.com/font-awesome/2.0/css/font-awesome.css" rel="stylesheet">
+  <script>
+    _bTestKey = "agt1YS1wcm9maWxlcnINCxIEVGVzdBihyKATDA";
+  </script>
+  <script src="http://code.jquery.com/jquery-1.8.0.min.js"></script>
+  <script src="http://netdna.bootstrapcdn.com/twitter-bootstrap/2.2.2/js/bootstrap.min.js"></script>
+  <script src="http://code.jquery.com/qunit/qunit-1.10.0.js"></script>
+  <script src="src/encoding.js"></script>
+  <script src="bin/BJSON.js"></script>
+  <script src="bin/test-data.js"></script>
+  <script src="bin/testing.js"></script>
+  <style>
+  .popover{
+    width:      300px;
+  }
+  .popover-content{
+    font-size:  12px;
+  }
+  .hero-unit a{
+    color:      inherit;
+  }
+  </style>
+</head>
+<body>
+  <a href="https://github.com/jonasfj/BJSON.coffee">
+    <img style="position: absolute; top: 0; right: 0; border: 0;"
+         src="https://s3.amazonaws.com/github/ribbons/forkme_right_darkblue_121621.png" alt="Fork me on GitHub">
+  </a>
+  <div class="container">
+  <div class="row" style="margin-top: 20px;">
+    <div class="span12">
+      <div class="hero-unit">
+        <a href="http://github.com/jonasfj/BJSON.coffee"><h1>BJSON.coffee</h1></a>
+        <p>A Binary JSON implementation for browsers using CoffeeScript.</p>
+      </div>
+    </div>
+  </div>
+  <div class="row">
+    <div class="span6">
+    <h4>Why <span style="font-weight: normal;">bother with Binary JSON?</span></h4>
+    <ul>
+      <li>JSON can't encode <b>typed arrays</b></li>
+      <li>5-10% <b>smaller</b> than JSON </li>
+      <li>Can encode <b>any JSON</b> object</li>
+    </ul>
+    <br>
+    <h4>How <span style="font-weight: normal;">do I use BJSON?</span></h4>
+    <pre><b>var</b> my_arraybuffer <b>=</b> BJSON<b>.</b>serialize<b>(</b>my_json_object<b>);</b></pre>
+    And remember that you now have an <code>ArrayBuffer</code>.<br>
+    <br>
+    <h4>Where <span style="font-weight: normal;"> do find the specification?</span></h4>
+    The <b>specification</b> is available from <a href="http://bjson.org">bjson.org</a>.<br>
+    <br>
+    <h4>Test <span style="font-weight: normal;"> BJSON.coffee now</span></h4>
+    <p id="run-test-msg">
+      <button class="btn btn-primary btn-mini" type="button" id="run-tests">Run Tests</button>
+        to see if BJSON.coffee works in your browser.
+      </p>
+      <a href="#" id="show-qunit" style="display: none;">Show test results</a>
+    <div id="qunit" style="display: none;"></div>
+    </div>
+    <div class="span6">
+      <h2>Browser Compatibility</h2>
+      <div id="results"></div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

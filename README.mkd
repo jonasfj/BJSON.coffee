@@ -1,0 +1,29 @@
+A CoffeeScript Implementation of BJSON for Browsers
+===================================================
+[BJSON](http://bjson.org) is a binary JSON encoding, essentially maintaining the same
+structure as JSON, but with support for embedding binary blobs.
+
+You can encode any JSON document in BJSON and must BJSON documents in JSON.
+However, encoding binary data, such as images, is not supported by `JSON.stringify`,
+and methods typically used for encoding binary data in JSON have a large overhead.
+
+With BJSON you can serialize JSON objects containing typed arrays (`ArrayBuffer`)
+to binary data. Futhermore, a BJSON encoding is typically 5-10% shorter than the
+conventional string encoding of JSON objects.
+
+Technical Notes
+===============
+The official [BJSON specification](http://bjson.org) dictates the support for 64 bit integers,
+and the option to encode size fields using a 64 bit integer. However, as number in Javascript
+and, hence, JSON are 64 bit floats, BJSON.coffee does not support integers beyond 53 bit.
+For size fields this is 9 Petabyte, which isn't a problem, but for 64 bit integers larger than
+2^53 precision will be lost.
+Also note that BJSON.coffee encodes integers larger than 2^32 as 64 bit floats.
+
+License
+=======
+BJSON.coffee is released under the [Apache License 2.0](http://www.apache.org/licenses/LICENSE-2.0).
+For UTF-8 string encoding BJSON.coffee uses `encoding.js` which is a modified version of the string
+encoding shim provided by [stringencoding](http://code.google.com/p/stringencoding/), which is also
+licensed under the [Apache License 2.0](http://www.apache.org/licenses/LICENSE-2.0).
+
