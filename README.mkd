@@ -12,8 +12,8 @@ to binary data. Futhermore, a BJSON encoding is typically 5-10% shorter than the
 conventional string encoding of JSON objects.
 
 More Information
-================
-For more information on BJSON and BJSON.coffee, take a look at the following links.
+----------------
+_For more information on BJSON and BJSON.coffee, take a look at the following links._
 
   * The [BJSON specification](http://bjson.org)
   * The BJSON.coffee browser [compatibility testing page](http://jonasfj.github.com/BJSON.coffee/)
@@ -21,7 +21,7 @@ For more information on BJSON and BJSON.coffee, take a look at the following lin
   * Performance comparison of [JSON.stringify and BJSON.serialize](http://jsperf.com/json-stringify-vs-bjson-serialize)
 
 Technical Notes
-===============
+---------------
 The official [BJSON specification](http://bjson.org) dictates the support for 64 bit integers,
 and the option to encode size fields using a 64 bit integer. However, as number in Javascript
 and, hence, JSON are 64 bit floats, BJSON.coffee does not support integers beyond 53 bit.
@@ -30,7 +30,7 @@ For size fields this is 9 Petabyte, which isn't a problem, but for 64 bit intege
 Also note that BJSON.coffee encodes integers larger than 2^32 as 64 bit floats.
 
 License
-=======
+-------
 BJSON.coffee is released under the [Apache License 2.0](http://www.apache.org/licenses/LICENSE-2.0).
 For UTF-8 string encoding BJSON.coffee uses `encoding.js` which is a modified version of the string
 encoding shim provided by [stringencoding](http://code.google.com/p/stringencoding/), which is also
