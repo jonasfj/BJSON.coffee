@@ -11,7 +11,9 @@ BJSON = require("#{__dirname}/../src/BJSON.coffee").BJSON
 fs = require 'fs'
 
 folder = "#{__dirname}/../tests/"
-tests = fs.readdirSync(folder)
+tests = []
+for f in fs.readdirSync(folder) when f[-5...] is ".json"
+  tests.push f[...-5]
 tests.sort()
 
 compare = (e1, e2) ->
@@ -48,20 +50,33 @@ bold      = (s) -> "\u001b[1m" + s + reset
 underline = (s) -> "\u001b[4m" + s + reset
 highlight = (s) -> "\u001b[47m" + s + reset
 
-console.log underline bold format("Test:", 24, "size (JSON):", 15, "size (BJSON):", 15, "Compression:", 15, "Success:", 0);
+console.log underline bold format("Test:", 24, "size (JSON):", 15, "size (BJSON):", 15, "Compression:", 15, "Parse:", 10, "Serialize:", 0);
 
 for test, i in tests
-  data    = fs.readFileSync(folder + test)
-  json    = JSON.parse(data)
-  bjson   = BJSON.serialize(json)
-  json2   = BJSON.parse(bjson)
-  data2   = new Buffer(JSON.stringify(json2), 'utf8')
-  result  = compare(json, json2)
-  mod = (s) -> s
-  if not result
-    mod = (s) -> bold s
-  ratio   = Math.floor( (1 - bjson.byteLength / data.length) * 100) + "%"
-  output = format(test, 24, data2.length, -8, "", 7, bjson.byteLength, -8, "", 7, ratio, -8, "", 7) + mod format(result, 8)
+  # Load test data
+  orig_json_data    = fs.readFileSync(folder + test + ".json")
+  orig_bjson_data   = fs.readFileSync(folder + test + ".bjson")
+  # Parse orignal JSON
+  orig_json         = JSON.parse(orig_json_data)
+  # Serialize and parse BJSON
+  new_bjson         = BJSON.serialize(orig_json)
+  new_json          = BJSON.parse(new_bjson)
+  serialize_result  = compare(orig_json, new_json)
+  # Stringify JSON for size ratio measure
+  orig_json_data2   = new Buffer(JSON.stringify(new_json), 'utf8')
+  # Parse BJSON file
+  parsed_bjson      = BJSON.parse(orig_bjson_data)
+  parse_result      = compare(orig_json, parsed_bjson)
+  ratio   = Math.floor( (1 - new_bjson.byteLength / orig_json_data2.length) * 100) + "%"
+  output = format(test, 24, orig_json_data2.length, -8, "", 7, new_bjson.byteLength, -8, "", 7, ratio, -8, "", 7)
+  result = format(serialize_result, 10)
+  if not serialize_result
+    result = bold result
+  output += result
+  result = format(parse_result, 10)
+  if not parse_result
+    result = bold result
+  output += result
   if i % 2 is 0
     output = highlight output
   console.log output
