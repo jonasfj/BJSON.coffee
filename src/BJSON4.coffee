@@ -16,53 +16,21 @@
 
 #### BJSON Parser
 
-# Parse functions for different types
-# Type is defined in the BJSON specification, we choose a type parser
-# using the 6 high bits of the type field.
-type = []
-
-# Primitive type parse
-prim = [null, false, "", true]
-type[0] = (st)        -> prim[st]
-
-# Positive integer type parser
-type[1] = (val)       -> val
-
-# Negative integer type parser
-type[2] = (val)       -> - val
-
-# Floating point type parser
-type[3] = (st, ctx)   ->
-  if st is 0
-    val = ctx.view.getFloat32(ctx.offset, true)
-  else
-    val = ctx.view.getFloat64(ctx.offset, true)
-  ctx.offset += 4 + 4 * st
-  return val
+nbuf   = 0xffff
+buf    = new Uint16Array(nbuf)
 
 # String type parser
-type[4] = (size, ctx) ->
+decodeString = (size, ctx) ->
   #if TextDecoder?
   #  val = TextDecoder('utf-8').decode(new Uint8Array(ctx.buffer, ctx.offset, size))
   #  ctx.offset += size
   #  return val
   offset = ctx.offset
   end    = ctx.offset + size
-  nbuf   = Math.min(0xffff, size) 
-  buf    = null
   ibuf   = 0
   strs   = []
   # while there is text to read
   while offset < end
-    ascii_end = offset
-    while ascii_end < end and not (ctx.bytes[ascii_end] & 0x80)
-      ascii_end++
-    if ascii_end > offset
-      ascii_buf = new Uint8Array(ctx.buffer, offset, ascii_end - offset)
-      strs.push String.fromCharCode(ascii_buf...)
-      offset = ascii_end
-    
-    buf ?= new Uint16Array(nbuf)  
     # while there's room for two entries in buf
     while offset < end and ibuf < nbuf - 1
       b = ctx.bytes[offset++]
@@ -106,57 +74,36 @@ type[4] = (size, ctx) ->
     return strs[0]
   return strs.join("")
 
-# String type parser
-#type[4] = (size, ctx) ->
-#  val = TextDecoder('utf-8').decode(new Uint8Array(ctx.buffer, ctx.offset, size))
-#  ctx.offset += size
-#  return val
-
-# Binary blob type parser
-type[5] = (size, ctx) ->
-  val = ctx.buffer.slice(ctx.offset, size)
-  ctx.offset += size
-  return val
-
-# Unused types
-type[6] = null
-type[7] = null
-
-# Array type parser
-type[8] = (size, ctx) ->
-  end = ctx.offset + size
-  return (read(ctx) while ctx.offset < end)
-
-# Object type parser
-type[9] = (size, ctx) ->
-  end = ctx.offset + size
-  obj = {}
-  while ctx.offset < end
-    key = read(ctx)
-    val = read(ctx)
-    obj[key] = val
-  return obj
 
 # Array lookup is faster than Math.pow: http://jsperf.com/math-pow-vs-array-lookup
-sizes = [1, 2, 4, 8]
+prim = [null, false, "", true]
 
 # Read BJSON item
 read = (ctx) ->
   t  = ctx.bytes[ctx.offset++]
-  tt = Math.floor(t / 4)  # Type form the type array
-  st = t % 4              # Low bits, indicating size of size field
+  tt = (t & 0x3c) >> 2    # High bits, indicating type
+  st = t & 0x3            # Low bits, indicating size of size field
   # Types 0 and 3 are special cases, these take different arguments
-  if tt is 0 or tt is 3
-    return type[tt](st, ctx)
-  # Types not 0 or 3 depends on an integer whos size can be read from the low bits.
+  if tt is 0
+    return prim[st]
+  if tt is 3
+    if st is 0
+      val = ctx.view.getFloat32(ctx.offset, true)
+    else
+      val = ctx.view.getFloat64(ctx.offset, true)
+    ctx.offset += 4 + 4 * st
+    return val
+  # If tt isn't 0 or 3, we must read a size field
   if st < 2
     if st is 0
-      size = ctx.view.getUint8(ctx.offset)
+      size = ctx.bytes[ctx.offset++]
     else
       size = ctx.view.getUint16(ctx.offset, true)
+      ctx.offset += 2
   else 
     if st is 2
       size = ctx.view.getUint32(ctx.offset, true)
+      ctx.offset += 4
     else
       # This code path is untested, and will fail for numbers larger
       # than 2^53, but let's hope documents large than 4GiB are unlikely.
@@ -170,8 +117,28 @@ read = (ctx) ->
       lower = ctx.view.getUint64(ctx.offset, true) 
       upper = ctx.view.getUint64(ctx.offset + 4, true)
       size = lower + upper * 0x100000000
-  ctx.offset += sizes[st]
-  return type[tt](size, ctx)
+      ctx.offset += 8
+  if tt < 3
+    return size * (3 - 2 * tt) # possible values are 1 and 2
+  else if tt is 4 # String
+    return decodeString(size, ctx)
+  else
+    if tt is 9 # Object
+        end = ctx.offset + size
+        obj = {}
+        while ctx.offset < end
+          key = read(ctx)
+          val = read(ctx)
+          obj[key] = val
+        return obj
+    else if tt is 8  # Array
+      end = ctx.offset + size
+      return (read(ctx) while ctx.offset < end)
+    else if tt is 5 # ArrayBuffer
+      val = ctx.buffer.slice(ctx.offset, size)
+      ctx.offset += size
+      return val
+  throw new Error("Type doesn't exists!!!")
 
 # Parse a BJSON document
 @BJSON.parse = (buf) ->

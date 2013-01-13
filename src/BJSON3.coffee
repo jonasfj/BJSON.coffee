@@ -40,6 +40,9 @@ type[3] = (st, ctx)   ->
   ctx.offset += 4 + 4 * st
   return val
 
+mybuffer    = null
+mybuffer = new Uint16Array(0xffff)
+
 # String type parser
 type[4] = (size, ctx) ->
   #if TextDecoder?
@@ -48,21 +51,12 @@ type[4] = (size, ctx) ->
   #  return val
   offset = ctx.offset
   end    = ctx.offset + size
-  nbuf   = Math.min(0xffff, size) 
-  buf    = null
+  nbuf   = 0xffff
+  buf = mybuffer
   ibuf   = 0
   strs   = []
   # while there is text to read
   while offset < end
-    ascii_end = offset
-    while ascii_end < end and not (ctx.bytes[ascii_end] & 0x80)
-      ascii_end++
-    if ascii_end > offset
-      ascii_buf = new Uint8Array(ctx.buffer, offset, ascii_end - offset)
-      strs.push String.fromCharCode(ascii_buf...)
-      offset = ascii_end
-    
-    buf ?= new Uint16Array(nbuf)  
     # while there's room for two entries in buf
     while offset < end and ibuf < nbuf - 1
       b = ctx.bytes[offset++]
