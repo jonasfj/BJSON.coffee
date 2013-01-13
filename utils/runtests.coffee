@@ -1,11 +1,5 @@
 #!/usr/bin/env coffee
 
-# Import TextEncoder and TextDecoder into global scope
-{
-  TextDecoder: global.TextDecoder
-  TextEncoder: global.TextEncoder
-} = require "#{__dirname}/../src/encoding.js"
-
 BJSON = require("#{__dirname}/../src/BJSON.coffee").BJSON
 
 fs = require 'fs'

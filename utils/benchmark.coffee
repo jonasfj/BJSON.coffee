@@ -1,21 +1,7 @@
 #!/usr/bin/env coffee
 
-# Import TextEncoder and TextDecoder into global scope
-{
-  TextDecoder: global.TextDecoder
-  TextEncoder: global.TextEncoder
-} = require "#{__dirname}/../src/encoding.js"
 
 BJSON = require("#{__dirname}/../src/BJSON.coffee").BJSON
-BJSON2 = require("#{__dirname}/../src/BJSON2.coffee").BJSON
-BJSON3 = require("#{__dirname}/../src/BJSON3.coffee").BJSON
-BJSON4 = require("#{__dirname}/../src/BJSON4.coffee").BJSON
-BJSON5 = require("#{__dirname}/../src/BJSON5.coffee").BJSON
-BJSON6 = require("#{__dirname}/../src/BJSON6.coffee").BJSON
-BJSON7 = require("#{__dirname}/../src/BJSON7.coffee").BJSON
-BJSON8 = require("#{__dirname}/../src/BJSON8.coffee").BJSON
-BJSON9 = require("#{__dirname}/../src/BJSON9.coffee").BJSON
-BJSONX = require("#{__dirname}/../src/BJSONX.coffee").BJSON
 
 fs = require 'fs'
 Benchmark = require('benchmark').Benchmark
@@ -61,15 +47,6 @@ testCases = [
 
 parsers =
   BJSON:  BJSON.parse
-  BJSON2: BJSON2.parse
-  BJSON3: BJSON3.parse
-  BJSON4: BJSON4.parse
-  BJSON5: BJSON5.parse
-  BJSON6: BJSON6.parse
-  BJSON7: BJSON7.parse
-  BJSON8: BJSON8.parse
-  BJSON9: BJSON9.parse
-  BJSONX: BJSONX.parse
 
 console.log "\nTesting Parsers:"
 for test in testCases

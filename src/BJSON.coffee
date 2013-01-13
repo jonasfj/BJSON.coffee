@@ -16,81 +16,88 @@
 
 #### BJSON Parser
 
-# Parse functions for different types
-# Type is defined in the BJSON specification, we choose a type parser
-# using the 6 high bits of the type field.
-type = []
-
-# Primitive type parse
-prim = [null, false, "", true]
-type[0] = (st)        -> prim[st]
-
-# Positive integer type parser
-type[1] = (val)       -> val
-
-# Negative integer type parser
-type[2] = (val)       -> - val
-
-# Floating point type parser
-type[3] = (st, ctx)   ->
-  if st is 0
-    val = ctx.view.getFloat32(ctx.offset, true)
-  else
-    val = ctx.view.getFloat64(ctx.offset, true)
-  ctx.offset += 4 + 4 * st
-  return val
 
 # String type parser
-type[4] = (size, ctx) ->
-  val = TextDecoder('utf-8').decode(new Uint8Array(ctx.buffer, ctx.offset, size))
+decodeString = (size, ctx) ->
+  #if TextDecoder?
+  #  val = TextDecoder('utf-8').decode(new Uint8Array(ctx.buffer, ctx.offset, size))
+  #  ctx.offset += size
+  #  return val
+  offset = ctx.offset
+  end    = ctx.offset + size
+  strs   = []
+  # while there is text to read
+  while offset < end
+    buf = []
+    nextend = Math.min(end, offset + 0x7fff)
+    # while there's room for two entries in buf
+    while offset < nextend
+      b = ctx.bytes[offset++]
+      if not (b & 0x80)
+        # Add codepoint b
+        buf.push b
+        continue  
+      i = 0
+      while (b << i) & 0x40
+        i++
+      c = b & (0xff >> i)
+      while i-- > 0
+        if offset == end
+          i = -1
+          break
+        b = ctx.bytes[offset++]
+        if b & 0xc0 != 0x80
+          i = -1
+          offset--
+          break
+        c = (c << 6) | (b & 0x3f)
+      if i < 0
+        c = 0xfffd # Replacement character
+      # Add codepoint c
+      if c <= 0xffff
+        buf.push c
+      else
+        c -= 0x10000
+        buf.push 0xd800 + ((c >> 10) & 0x3ff)
+        buf.push 0xdc00 + (c & 0x3ff)
+    # Decode codepoints and add string to list
+    strs.push String.fromCharCode(buf...)
   ctx.offset += size
-  return val
+  # Join and return decoded strings
+  if strs.length == 1
+    return strs[0]
+  return strs.join("")
 
-# Binary blob type parser
-type[5] = (size, ctx) ->
-  val = ctx.buffer.slice(ctx.offset, size)
-  ctx.offset += size
-  return val
-
-# Unused types
-type[6] = null
-type[7] = null
-
-# Array type parser
-type[8] = (size, ctx) ->
-  end = ctx.offset + size
-  return (read(ctx) while ctx.offset < end)
-
-# Object type parser
-type[9] = (size, ctx) ->
-  end = ctx.offset + size
-  obj = {}
-  while ctx.offset < end
-    key = read(ctx)
-    val = read(ctx)
-    obj[key] = val
-  return obj
 
 # Array lookup is faster than Math.pow: http://jsperf.com/math-pow-vs-array-lookup
-sizes = [1, 2, 4, 8]
+prim = [null, false, "", true]
 
 # Read BJSON item
 read = (ctx) ->
-  t  = ctx.view.getUint8(ctx.offset++)
-  tt = Math.floor(t / 4)  # Type form the type array
-  st = t % 4              # Low bits, indicating size of size field
+  t  = ctx.bytes[ctx.offset++]
+  tt = (t & 0x3c) >> 2    # High bits, indicating type
+  st = t & 0x3            # Low bits, indicating size of size field
   # Types 0 and 3 are special cases, these take different arguments
-  if tt is 0 or tt is 3
-    return type[tt](st, ctx)
-  # Types not 0 or 3 depends on an integer whos size can be read from the low bits.
+  if tt is 0
+    return prim[st]
+  if tt is 3
+    if st is 0
+      val = ctx.view.getFloat32(ctx.offset, true)
+    else
+      val = ctx.view.getFloat64(ctx.offset, true)
+    ctx.offset += 4 + 4 * st
+    return val
+  # If tt isn't 0 or 3, we must read a size field
   if st < 2
     if st is 0
-      size = ctx.view.getUint8(ctx.offset)
+      size = ctx.bytes[ctx.offset++]
     else
       size = ctx.view.getUint16(ctx.offset, true)
-  else
+      ctx.offset += 2
+  else 
     if st is 2
       size = ctx.view.getUint32(ctx.offset, true)
+      ctx.offset += 4
     else
       # This code path is untested, and will fail for numbers larger
       # than 2^53, but let's hope documents large than 4GiB are unlikely.
@@ -104,8 +111,31 @@ read = (ctx) ->
       lower = ctx.view.getUint64(ctx.offset, true) 
       upper = ctx.view.getUint64(ctx.offset + 4, true)
       size = lower + upper * 0x100000000
-  ctx.offset += sizes[st]
-  return type[tt](size, ctx)
+      ctx.offset += 8
+  if tt < 3
+    return size * (3 - 2 * tt) # possible values are 1 and 2
+  else if tt is 4 # String
+    return decodeString(size, ctx)
+  else
+    if tt is 9 # Object
+        end = ctx.offset + size
+        obj = {}
+        while ctx.offset < end
+          key = read(ctx)
+          val = read(ctx)
+          obj[key] = val
+        return obj
+    else if tt is 8  # Array
+      end = ctx.offset + size
+      val = []
+      while ctx.offset < end
+        val.push read(ctx)
+      return val
+    else if tt is 5 # ArrayBuffer
+      val = ctx.buffer.slice(ctx.offset, size)
+      ctx.offset += size
+      return val
+  throw new Error("Type doesn't exists!!!")
 
 # Parse a BJSON document
 @BJSON.parse = (buf) ->
@@ -113,103 +143,169 @@ read = (ctx) ->
   return read
       buffer: buf
       view:   new DataView(buf)
+      bytes:  new Uint8Array(buf)
       offset: 0
+
 
 #### BJSON Serialization
 
-# Dictionary with serializers for different types, each returning a dictionary
-# of {size, parts}, where size is accumulated size of the ArrayBuffers in parts
+class SerializationContext
+  constructor: (size = 4096) ->
+    @buf    = new ArrayBuffer(size)
+    @view   = new DataView(@buf)
+    @bytes  = new Uint8Array(@buf)
+    @offset = 0
+  resize: (size) ->
+    if @buf.byteLength - @offset < size
+      @buf     = new ArrayBuffer((@offset + size) * 2)
+      bytes   = new Uint8Array(@buf)
+      bytes.set(@bytes)
+      @bytes = bytes
+      @view   = new DataView(@buf)
+
+# Dictionary with serializers for different types, each taking a value and serializing to context
 put = {}
 
 # String serialization
-put.string = (data) ->
-  if data.length is 0
-    buf = new ArrayBuffer(1)
-    (new DataView(buf)).setUint8(0, 0x2)
-    return {size: 1, parts: [buf]}
-  parts = [null]
-  parts[1] = TextEncoder('utf-8').encode(data)
-  parts[0] = typesize(0x10, parts[1].byteLength)
-  return {size: parts[0].byteLength + parts[1].byteLength, parts}
+# For DOM-string intepretation see: http://www.w3.org/TR/WebIDL/#idl-DOMString
+# For UTF-8 encoding see: http://tools.ietf.org/html/rfc3629#section-3
+put.string = (val, ctx) ->
+  if val.length is 0
+    ctx.resize(1)
+    ctx.view.setUint8(ctx.offset, 0x2)
+    ctx.offset += 1
+  else
+    bound = val.length * 3
+    typeoffset = ctx.offset
+    typesize(0x10, 0, bound, ctx)
+    contentoffset = ctx.offset
+    ctx.resize(bound)
+    offset = ctx.offset
+    bytes = ctx.bytes
+    i = 0
+    n = val.length
+    while i < n
+      c = val.charCodeAt(i++)
+      size = 0
+      first = 0
+      if c < 0x80
+        bytes[offset++] = c
+        continue
+      else if c < 0x800
+        first = 0xc0
+        size = 2
+      else if c < 0xd800 or c > 0xdfff
+        first = 0xe0
+        size = 3
+      else if 0xdc00 <= c <= 0xdfff
+        c = 0xfffd  # Replacement character
+        first = 0xe0
+        size = 3
+      else if 0xd800 <= c <= 0xdbff
+        if i < n
+          d = val.charCodeAt(i++)
+          if 0xdc00 <= d <= 0xdfff
+            a = c & 0x3ff
+            b = d & 0x3ff
+            c = 0x10000 + (a << 10) + b
+            first = 0xf0
+            size = 4
+        else
+          c = 0xfffd  # Replacement character
+          first = 0xe0
+          size = 3
+      else
+        # Specification doesn't derive any character from c
+        continue
+      j = offset + size - 1
+      while j > offset
+        bytes[j--] = (c & 0x3f) | 0x80
+        c >>= 6
+      bytes[offset] = c | first
+      offset += size
+    ctx.offset = typeoffset
+    typesize(0x10, offset - contentoffset, bound, ctx)
+    ctx.offset = offset
 
 # Boolean serialization
-put.boolean = (data) ->
-  buf = new ArrayBuffer(1)
-  (new DataView(buf)).setUint8(0, 1 + data * 2)
-  return {size: 1, parts: [buf]}
+put.boolean = (val, ctx) ->
+  ctx.resize(1)
+  ctx.view.setUint8(ctx.offset, 1 + val * 2)
+  ctx.offset++
 
 # Number serialization
-put.number = (data) ->
+put.number = (val, ctx) ->
   # If integer less than 2^32 encode as integer, otherwise we write it as 64 bit float.
   # Javascript only support 64 bit floats, so encoding anything bigger than 2^32 as
   # integer is pointless.
-  if data % 1 is 0 and Math.abs(data) <= 0xffffffff
-    if data > 0
-      buf = typesize(0x4, data)
+  if val % 1 is 0 and Math.abs(val) <= 0xffffffff
+    if val > 0
+      typesize(0x4, val, val, ctx)
     else
-      buf = typesize(0x8, -data)
-    size = buf.byteLength
+      typesize(0x8, -val, -val, ctx)
   else
-    buf = new ArrayBuffer(9)
-    view = new DataView(buf)
-    view.setUint8(0, 0xd)
-    view.setFloat64(1, data, true)
-    size = 9
-  return {size, parts: [buf]}
+    ctx.resize(9)
+    ctx.view.setUint8(ctx.offset, 0xd)
+    ctx.view.setFloat64(ctx.offset + 1, val, true)
+    ctx.offset += 9
 
 # Object serialization
-put.object = (data) ->
-  parts = [null]
-  size  = 0
+put.object = (val, ctx) ->
   # Handle binary fields
-  if data instanceof ArrayBuffer
-    parts[0] = typesize(0x14, size)
-    size += parts[0].byteLength
-    parts.push data
-    size += data.byteLength
+  if val instanceof ArrayBuffer
+    typesize(0x14, val.byteLength, val.byteLength, ctx)
+    ctx.resize(val.byteLength)
+    ctx.bytes.set(ctx.offset, new Uint8Array(val))
+    ctx.offset += val.byteLength
   # Serialization of arrays
-  else if data instanceof Array
-    for val in data
-      {size: vs, parts: vp} = put[typeof val](val)
-      parts.push vp...
-      size += vs
-    parts[0] = typesize(0x20, size)
-    size += parts[0].byteLength
+  else if val instanceof Array
+    typeoffset = ctx.offset
+    typesize(0x20, 0, 0x10000, ctx)
+    contentoffset = ctx.offset
+    for v in val
+      put[typeof v](v, ctx)
+    offset = ctx.offset
+    ctx.offset = typeoffset
+    typesize(0x20, offset - contentoffset, 0x10000, ctx)
+    ctx.offset = offset
   # Serialize objects that isn't null
-  else if data isnt null
-    for key, val of data
-      {size: ks, parts: kp} = put[typeof key](key)
-      {size: vs, parts: vp} = put[typeof val](val)
-      parts.push kp..., vp...
-      size += ks + vs
-    parts[0] = typesize(0x24, size)
-    size += parts[0].byteLength
+  else if val isnt null
+    typeoffset = ctx.offset
+    typesize(0x24, 0, 0x10000, ctx)
+    contentoffset = ctx.offset
+    for k, v of val
+      put[typeof k](k, ctx)
+      put[typeof v](v, ctx)
+    offset = ctx.offset
+    ctx.offset = typeoffset
+    typesize(0x24, offset - contentoffset, 0x10000, ctx)
+    ctx.offset = offset
   # Serialization of null
   else #if data is null
-    parts[0] = new ArrayBuffer(1)
-    (new DataView(parts[0])).setUint8(0, 0x0)
-    size = 1
-  return {size, parts}
+    ctx.resize(1)
+    ctx.view.setUint8(ctx.offset, 0x0)
+    ctx.offset++
 
-# Write type and size field, writing the low bits of the type field depending
-# on the number of bits required to write the size field.
-typesize = (type, size, buf) ->
-  if size < 0x10000
-    if size < 0x100
-      buf ?= new ArrayBuffer(2)
-      view = new DataView(buf)
-      view.setUint8(0, type)
-      view.setUint8(1, size)
+# Write type and size field with enought bit s.t. size can grow to bound later
+typesize = (type, size, bound, ctx) ->
+  if size > bound
+    bound = size
+  if bound < 0x10000
+    if bound < 0x100
+      ctx.resize(2)
+      ctx.view.setUint8(ctx.offset, type)
+      ctx.view.setUint8(ctx.offset + 1, size)
+      ctx.offset += 2
     else
-      buf ?= new ArrayBuffer(3)
-      view = new DataView(buf)
-      view.setUint8(0, type + 1)
-      view.setUint16(1, size, true)
-  else if size < 0x100000000
-    buf ?= new ArrayBuffer(5)
-    view = new DataView(buf)
-    view.setUint8(0, type + 2)
-    view.setUint32(1, size, true)
+      ctx.resize(3)
+      ctx.view.setUint8(ctx.offset, type + 1)
+      ctx.view.setUint16(ctx.offset + 1, size, true)
+      ctx.offset += 3
+  else if bound < 0x100000000
+    ctx.resize(5)
+    ctx.view.setUint8(ctx.offset, type + 2)
+    ctx.view.setUint32(ctx.offset + 1, size, true)
+    ctx.offset += 5
   else
     # This code path is untested, will fail for numbers larger than
     # 2^53 as Javascript numbers are 64bit floats.
@@ -227,23 +323,17 @@ typesize = (type, size, buf) ->
     # 32 bits of the 64 bit integer. This transformation could have
     # nasty side effects, who, knows... But browsers probably doesn't
     # support ArrayBuffers larger than 4GiB anyway.
-    buf ?= new ArrayBuffer(9)
-    view = new DataView(buf)
-    view.setUint8(0, type + 3)
-    view.setUint32(1, size & 0xffffffff, true)
-    view.setUint32(5, (size - (size & 0xffffffff)) / 0x100000000, true)
-  return buf
+    ctx.resize(9)
+    ctx.view.setUint8(ctx.offset, type + 3)
+    ctx.view.setUint32(ctx.offset + 1, size & 0xffffffff, true)
+    ctx.view.setUint32(ctx.offset + 5, (size - (size & 0xffffffff)) / 0x100000000, true)
+    ctx.offset += 9
 
 # Serialize a JSON document to BJSON
-@BJSON.serialize = (data) ->
-  {size, parts} = put[typeof data](data)
-  offset = 0
-  buf = new ArrayBuffer(size)
-  view = new Uint8Array(buf)
-  for part in parts
-    view.set(new Uint8Array(part), offset)
-    offset += part.byteLength
-  if offset != size
-    throw "BJSON has an internal error: computed size didn't match actual size!"
-  return buf
-
+@BJSON.serialize = (val) ->
+  ctx = new SerializationContext()
+  put[typeof val](val, ctx)
+  buf = new ArrayBuffer(ctx.offset)
+  bytes = new Uint8Array(buf)
+  bytes.set(new Uint8Array(ctx.buf, 0, ctx.offset))
+  return buf #ctx.buf.splice(0, ctx.offset)
