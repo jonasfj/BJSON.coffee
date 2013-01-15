@@ -157,10 +157,10 @@ class SerializationContext
     @offset = 0
   resize: (size) ->
     if @buf.byteLength - @offset < size
-      @buf     = new ArrayBuffer((@offset + size) * 2)
+      @buf    = new ArrayBuffer((@offset + size) * 2)
       bytes   = new Uint8Array(@buf)
       bytes.set(@bytes)
-      @bytes = bytes
+      @bytes  = bytes
       @view   = new DataView(@buf)
 
 # Dictionary with serializers for different types, each taking a value and serializing to context
@@ -333,7 +333,4 @@ typesize = (type, size, bound, ctx) ->
 @BJSON.serialize = (val) ->
   ctx = new SerializationContext()
   put[typeof val](val, ctx)
-  buf = new ArrayBuffer(ctx.offset)
-  bytes = new Uint8Array(buf)
-  bytes.set(new Uint8Array(ctx.buf, 0, ctx.offset))
-  return buf #ctx.buf.splice(0, ctx.offset)
+  return ctx.buf.slice(0, ctx.offset)
