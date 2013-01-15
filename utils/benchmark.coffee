@@ -1,6 +1,6 @@
 #!/usr/bin/env coffee
 
-
+require("#{__dirname}/../src/ArrayBufferSlice.coffee")
 BJSON = require("#{__dirname}/../src/BJSON.coffee").BJSON
 
 fs = require 'fs'
