@@ -22,8 +22,8 @@ compare = (e1, e2) ->
     return true
   if typeof e1 is 'object' or typeof e2 is 'object'
     return false    if not (typeof e1 is 'object' and typeof e2 is 'object')
-    keys = [k for k, v of e1]
-    return false      if not compare(keys, [k for k, v of e2])
+    keys = (k for k, v of e1)
+    return false      if not compare(keys, (k for k, v of e2))
     for key in keys
       return false  if not compare(e1[key], e2[key])
     return true

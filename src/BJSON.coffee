@@ -40,13 +40,14 @@ decodeString = (size, ctx) ->
       i = 0
       while (b << i) & 0x40
         i++
-      c = b & (0xff >> i)
-      while i-- > 0
+      c = b & (0xff >> i + 1)
+      while i > 0
+        i -= 1
         if offset == end
           i = -1
           break
         b = ctx.bytes[offset++]
-        if b & 0xc0 != 0x80
+        if (b & 0xc0) != 0x80
           i = -1
           offset--
           break
