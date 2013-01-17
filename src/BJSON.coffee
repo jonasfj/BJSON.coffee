@@ -256,7 +256,7 @@ put.object = (val, ctx) ->
   if val instanceof ArrayBuffer
     typesize(0x14, val.byteLength, val.byteLength, ctx)
     ctx.resize(val.byteLength)
-    ctx.bytes.set(ctx.offset, new Uint8Array(val))
+    ctx.bytes.set(new Uint8Array(val), ctx.offset)
     ctx.offset += val.byteLength
   # Serialization of arrays
   else if val instanceof Array
